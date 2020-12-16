@@ -1,10 +1,5 @@
 import numpy as np
-import matplotlib
-
-#for pop out plots - windows
-#matplotlib.use('Qt5Agg')
 import matplotlib.pyplot as plt
-import time
 import matplotlib.cm as cm
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -66,4 +61,4 @@ plt.title("Energy over time")
 plt.xlabel("time step")
 plt.ylabel("Energy")
 plt.legend()
-plt.show()
+plt.savefig('Energy_noP.jpg')

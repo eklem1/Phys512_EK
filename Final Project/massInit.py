@@ -4,6 +4,15 @@ from FyeldGenerator import generate_field
 
 """
 Quick caller function to make this cleaner
+INPUT
+	gridSize: np.array with the size of each dim of the grid
+	dx: size of cells, not well tested for != 1.0
+	n: number of particles
+	x: position of particles
+	dim: dimention (2 or 3)
+	max_m: maximum mass to be created
+OUTPUT
+	masses: n len array of each particles mass
 """
 def GetMass(gridSize, dx, n, x, dim, max_m, cosm="mine"):
 
@@ -13,7 +22,13 @@ def GetMass(gridSize, dx, n, x, dim, max_m, cosm="mine"):
 	masses = setMass(n, x, Probs, dx, max_m, dim)
 	return masses
 
+
 """
+Produces the probabilty grid that will be used to get masses. 
+Two methods:
+cosm="mine" (default): Will use the P(x) model of the scale-invariant power 
+	spectrum, seems to work well in 2D but gets streaky in 3D (may be a problem in the IFT)
+cosm="other": Uses FyeldGenerator's generate_field to get the grid. See functions near end of file.
 
 """
 def P_k_dist(gridSize, dx, n, dim, cosm="mine"):
@@ -33,6 +48,7 @@ def P_k_dist(gridSize, dx, n, dim, cosm="mine"):
 
         k_moreD = []
 
+        #get a grid of k_3d = sqrt(k^2 + k^2 + k^2 ) (or sim for 2D)
         for i in range(0, len(k_grid)):
             kk = []
             for j in range(0, len(k_grid)):
@@ -45,11 +61,13 @@ def P_k_dist(gridSize, dx, n, dim, cosm="mine"):
                     kk.append(np.sqrt(k_grid[i]**2 + k_grid[j]**2))
             k_moreD.append(kk)
 
+        #quick switch to an np array
         k_moreD = np.array(k_moreD)
 
         #actually do the power law
         pk = 1/np.abs(k_moreD**3)
 
+        #replace any infs by 0.0
         nans = np.argwhere(np.isinf(pk))
 
         for i in nans:
@@ -60,9 +78,9 @@ def P_k_dist(gridSize, dx, n, dim, cosm="mine"):
 
         pk_sq = np.sqrt(pk)
 
+        #mulitply by some white noise and IFT it back 
         whitenoise = np.fft.fft(np.random.normal(0,1, (gridSize/dx).astype(int) ))
         pk_noise = pk_sq*whitenoise
-
         kgrid_inv = np.fft.irfftn(pk_noise, s=pk_noise.shape)
         
     #using the FyeldGenerator for better results in 3D
@@ -77,12 +95,12 @@ def P_k_dist(gridSize, dx, n, dim, cosm="mine"):
     q_s = kgrid_inv/(maxP - minP)
 
     m = np.min(q_s)
-    q_s_up = q_s - m
+    q_s_up = q_s - m #is now in range (0, 1)
 
     return q_s_up, x
 
 """
-
+Taking in a grid of probabilties (P), uses this to get the mass of each particle.
 """
 def setMass(n, x, P, dt, max_m, dim):
 	m = np.zeros(n)
@@ -103,13 +121,17 @@ def setMass(n, x, P, dt, max_m, dim):
 	    
 	    #what kind of distribution are we then using?
 	    #we need mass to be positive, just use a normal distribution for now        
-	    mass = np.random.uniform(0, P_val,1)*max_m
+	    mass = np.random.uniform(0.1, P_val,1)*max_m #putting lower limit as I really don't want 0 mass particles
 	    m[i] = mass
 	    
 	return m
 
-
-# Helper that generates power-law power spectrum, can I just use this?
+"""
+Helper that generates power-law power spectrum
+taken from https://github.com/cphyc/FyeldGenerator
+to see if this gets better results than my own 
+homemade one.
+"""
 def Pkgen(n):
     def Pk(k):
         return np.power(k, -n)

@@ -7,31 +7,31 @@ class Particles:
         x_g = np.arange(0, gridSize[0], grid_dx)
         y_g = np.arange(0, gridSize[1], grid_dx)
         z_g = np.arange(0, gridSize[2], grid_dx)
-        self.grid = np.meshgrid(x_g, y_g, z_g)
-        self.grid_shape = np.array(gridSize)
-        self.dt = grid_dx
-        self.f_grid = np.meshgrid(self.grid[0][0]*0, self.grid[0][0]*0, self.grid[0][0]*0)
+        self.grid = np.meshgrid(x_g, y_g, z_g) #the (x,y,z) coordinate for each cell
+        self.grid_shape = np.array(gridSize) #shape of grid
+        self.dt = grid_dx #length of cell
+        self.f_grid = np.meshgrid(self.grid[0][0]*0, self.grid[0][0]*0, self.grid[0][0]*0) #to save the components of the force at each cell
         
         self.BC = BC_per #true for periodic BC, false for not
-        self.density = np.meshgrid(self.grid[0][0]*0)
-        self.potential = np.meshgrid(self.grid[0][0]*0)
+        self.density = np.meshgrid(self.grid[0][0]*0) #grid of density
+        self.potential = np.meshgrid(self.grid[0][0]*0) #grid of potential
         
-        self.x=x.copy()
-        self.v=v.copy()
+        self.x=x.copy() #position of each particle
+        self.v=v.copy() #velocity of each particle
         try:
-            self.m=m.copy()
+            self.m=m.copy() #mass of each particle
         except:
             self.m=m
             
-        self.f=np.empty(x.shape)
-        self.a=np.empty(x.shape)
+        self.f=np.empty(x.shape) #to save each component of the force on each particle
+        self.a=np.empty(x.shape) #to save each component of the acceleration of each particle
         
-        self.n=self.x.shape[0]
+        self.n=self.x.shape[0] #number of particles
         self.kill_p = np.zeros(self.x.shape[0], dtype=bool) #set to 1 (True) if particle is killed
-         
-        #maybe save energy?
-        
+
+
     ############ methods for calculations for each particle (as seen in class) #############
+    #################### you can skip this for the sake of this project ####################
     def r(self):
         return np.sqrt(np.sum(self.x**2, axis=1))
         
@@ -89,7 +89,7 @@ class Particles:
         
     #############################################
     
-    ############ methods for calculations with convolution (for project) #############
+    ############ methods for calculations with convolution (for final project) #############
     
 
     """
@@ -102,6 +102,7 @@ class Particles:
     solve phi = ifft(fft(G_laplacian) * fft(rho))  where G_laplacian is just the Green's function of the laplacian
     """
     
+    #gets radius from a point for each cell in our grid
     def r_grid_from_point(self, point):
         t = np.zeros( (len(self.grid[0]), len(self.grid[1]), len(self.grid[2])) ) 
          
@@ -112,6 +113,8 @@ class Particles:
 
         return t
     
+
+    #Green's function for the laplacian for a particle in the center of the grid
     def G_laplacian(self, soften=0.01):
         #can we just use a non-real particle at the center to make this easier? Yes i think so
         
@@ -127,6 +130,8 @@ class Particles:
         
         return green
     
+
+    #uses a histogram to get the density of each cell
     def get_density(self):
         
         #use a histogram to do way easier
@@ -145,11 +150,22 @@ class Particles:
         density = Hist/dt**3
         self.density = density
      
+
+    """
+	Convolves the test green function for 1 particle at the center of the grid with the density
+	to get the grid potential. The gradient is then taken to get the grid force, adding padding here
+	if BC are non-periodic.
+
+	Returns phi, f_grid, grad_x, grad_y, grad_z for trouble-shooting
+    """
     def get_forces_conv(self, soft=0.01, do_pot=False):
-        self.get_density() #I think this looks decent
+        self.get_density()
         rho = self.density
         
+        #get green's function
         green = self.G_laplacian()
+
+        #convolution to get the potential
         phi = convFunction(green, rho, dim=len(self.x[0]))  
         self.potential = phi
         
@@ -171,10 +187,10 @@ class Particles:
             grad_y = (np.roll(phi_pad,1,axis=1)-np.roll(phi_pad,-1,axis=1))/(2*self.dt)
             grad_z = (np.roll(phi_pad,1,axis=2)-np.roll(phi_pad,-1,axis=2))/(2*self.dt) 
             
+            #re-size
             grad_x = grad_x[p:-p, p:-p, p:-p]
             grad_y = grad_y[p:-p, p:-p, p:-p]
             grad_z = grad_z[p:-p, p:-p, p:-p]
-            #re-size somehow
        
         grad_x = -rho*grad_x
         grad_y = -rho*grad_y
@@ -186,6 +202,11 @@ class Particles:
         return phi, self.f_grid, grad_x, grad_y, grad_z
 
 
+    """
+	Get the accelerating for each particle from the force of the cell it is found in 
+	by looping through all particles.
+
+    """
     def get_acc_conv(self, soft=0.01, do_pot=False):
         #first calculate the force in each grid cell
         self.get_forces_conv()
@@ -194,8 +215,6 @@ class Particles:
         for i in range(self.n):
             #need to figure out which cell each particle is in
             #then pick out the force in that cell to use here
-            
-#             print("position? ", self.x[i,:])
             
             cell_n = np.floor(self.x[i,:]/(self.dt)).astype('int64') 
         
@@ -208,36 +227,40 @@ class Particles:
                     cell_n = np.floor(self.x[i,:]/(self.dt)).astype('int64') % len(self.grid[0])
                     
                     f = self.f_grid[cell_n[0]][cell_n[1]][cell_n[2]]
-                    self.a[i,:]=f/self.m[i]
+                    if self.m[i] > 0:
+                        self.a[i,:]=f/self.m[i]
+                    else:
+                        self.a[i,:] = f*0.0
                     
                 else:
-#                     cell_n = [0,0,0]
                     self.m[i] = 0.0
                     self.kill_p[i] = 1
                     self.a[i,:]= [0.0,0.0,0.0]
                     
             else: #non-edge particles
                 f = self.f_grid[cell_n[0]][cell_n[1]][cell_n[2]]
-            
-#             print("f, cell#:", f, cell_n)
-            
+                        
                 self.a[i,:]=f/self.m[i]
             
 #         print("particles out from acc matching:", out)
             
         return self.a
     
+    """ 
+	Checks for particles that are not with our grid. If periodic uses a mod to place
+	them in approximatly the opposing cell, if non periodic, particles are removed (by marking
+	them killed, chaning their mass to 0 and placing them outside our grid).
+    """
     def check_BC(self):
         
         out = 0
         
         for i in range(self.n):           
-#             print("position? ", self.x[i,:])
             
             cell_n = np.floor(self.x[i,:]/(self.dt)).astype('int64') 
             #got to watch out when particles leave our cube and deal with them
             
-            if np.any(cell_n < 0) or np.any(cell_n >= len(self.grid[0])): #could I just use a mod for periodic
+            if np.any(cell_n < 0) or np.any(cell_n >= len(self.grid[0])):
 #                 print("particle out!")
                 out += 1
                 
@@ -248,23 +271,26 @@ class Particles:
                     self.x[i,:] = self.x[i,:] % self.grid_shape[0]
 #                     print("to ", self.x[i,:])
                     
-                else: #need to actually remove them somehow?
-                    self.x[i,:] = [-5,-5,-5] #[0,0,0] #can I somehow remove them without messing up something else?
-                    self.v[i,:] = self.x[i,:]
-                    self.m[i] = 0.0
-                    self.kill_p[i] = 1
+                else: #need to actually remove them
+                    self.x[i,:] = [-5,-5,-5] #move well outside our grid
+                    self.v[i,:] = self.x[i,:]*0 #set to 0
+                    self.m[i] = 0.0 #no mass means no acc
+                    self.kill_p[i] = 1 #mark as killed
                     
 #         print("particles out:", out)
 
 
+	#our actual leapfrog stepper - pretty straight forward
     def take_step_leapfrog_conv(self, dt, soft=0.01):
-        self.get_acc_conv()
+        self.get_acc_conv() #get our acc
+
         v_h = self.v + self.a*dt
         self.x = self.x + v_h*dt
-        self.check_BC()
+        self.check_BC() #check for run away particles
         
         self.v = v_h #so the V saved will be a half step behind x
         
+    #calculate the kinetic, potential and total energy
     def get_energy(self):
         #simple 1/2 mv^2 for each particle for kinetic energy
         e_K = np.sum( 0.5*self.m*(np.sum(self.v**2, axis=1))**2)
@@ -276,7 +302,11 @@ class Particles:
         e_total = e_K + e_P
         return [e_total, e_K, e_P]
     
-#helper fucntions
+
+
+#helper functions
+
+#simple convolution of 2 arrays of dim
 def convFunction(arr1, arr2, dim=3):
  
     arrFT1 = np.fft.rfftn(arr1)
