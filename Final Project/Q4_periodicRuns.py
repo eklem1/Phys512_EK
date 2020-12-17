@@ -35,7 +35,7 @@ ax.set_zlim3d(0,gridSize[2])
 
 save_E = []
 
-for k in range(60):
+for k in range(80):
     for l in range(1):
         parts.take_step_leapfrog_conv(dt)
    
