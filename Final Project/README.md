@@ -22,7 +22,7 @@ The energy is definitely not constant. It peaks as the particles are closest tog
  - Energy_BC_P.jpg : energy plot
  - Energy_BC_P_justPo.jpg : energy plot
 
-This energy seems to eventually stabilize, which makes sense as the particles cannot leave the grid and therefor find a stable equilibrium point.
+This energy seems to eventually stabilize, which makes sense as the particles cannot leave the grid and therefor find a stable equilibrium point. I'm not really sure if the matter clumps should dissolve here or if this is a problem in my code.
 
 ### Q4
 **Q4_work.ipynb**: Code and plots used to develope the scale-invariant power spectrum.
@@ -33,7 +33,7 @@ This energy seems to eventually stabilize, which makes sense as the particles ca
  - Q4_output_other.gif : PS from FyeldGenerator
  - Q4_output_mine.gif : homemade PS 
 
- I do get some nice clumps of matter here, similar to how our actual universe looks. However they do dissolve into less defined shapes if run longer.
+I do get some nice clumps of matter here, similar to how our actual universe looks. However they do dissolve into less defined shapes if run longer. Note the colorbar on these plots is for the mass of each particles (although it is hard to see for so many particles).
 
 
 ## plots
